@@ -18,9 +18,9 @@ library(ggplot2)
 library(scales)
 
 ## ── Default values (can be overridden in the app) ────────────
-DEFAULT_TRUE    <- 150
-DEFAULT_LOWER   <- 100
-DEFAULT_UPPER   <- 200
+DEFAULT_TRUE    <- 75
+DEFAULT_LOWER   <- 50
+DEFAULT_UPPER   <- 100
 DEFAULT_OBJECT  <- "gumballs"
 DEFAULT_NGROUPS <- 6
 DEFAULT_GSIZE   <- 5
@@ -264,8 +264,16 @@ ui <- fluidPage(
                                fluidRow(
                                  column(6, numericInput("cfg_ngroups", "Number of groups",
                                                         value = DEFAULT_NGROUPS, min = 1, max = 20, step = 1)),
-                                 column(6, numericInput("cfg_gsize",   "Students per group",
-                                                        value = DEFAULT_GSIZE,   min = 1, max = 30, step = 1))
+                                 column(6,
+                                        div(style = "padding-top: 6px;",
+                                            tags$label(style = "font-size:0.88rem;letter-spacing:1px;text-transform:uppercase;color:#4A5568;font-weight:500;",
+                                                       "Group size"),
+                                            div(style = "font-size:0.92rem;color:#4A5568;margin-top:8px;line-height:1.5;",
+                                                "No limit \u2014 use the",
+                                                tags$strong("\u25b6 Next Group"),
+                                                "button to move between groups.")
+                                        )
+                                 )
                                )
                            ),
                            
@@ -403,17 +411,16 @@ server <- function(input, output, session) {
     upper   = DEFAULT_UPPER,
     true    = DEFAULT_TRUE,
     object  = DEFAULT_OBJECT,
-    ngroups = DEFAULT_NGROUPS,
-    gsize   = DEFAULT_GSIZE
+    ngroups = DEFAULT_NGROUPS
   )
   
   observeEvent(input$btn_configure, {
     lo <- input$cfg_lower;  hi <- input$cfg_upper
     tr <- input$cfg_true;   ob <- trimws(input$cfg_object)
-    ng <- input$cfg_ngroups; gs <- input$cfg_gsize
+    ng <- input$cfg_ngroups
     
     err_msg <- NULL
-    if (any(is.na(c(lo, hi, tr, ng, gs)))) err_msg <- "All fields must be filled in."
+    if (any(is.na(c(lo, hi, tr, ng)))) err_msg <- "All fields must be filled in."
     else if (lo >= hi)  err_msg <- "Lower bound must be less than upper bound."
     else if (tr <= 0)   err_msg <- "True answer must be a positive number."
     else if (ob == "")  err_msg <- "Object name cannot be empty."
@@ -428,12 +435,12 @@ server <- function(input, output, session) {
     }
     
     cfg$lower <- lo; cfg$upper <- hi; cfg$true <- tr
-    cfg$object <- ob; cfg$ngroups <- ng; cfg$gsize <- gs
+    cfg$object <- ob; cfg$ngroups <- ng
     
     output$config_status <- renderUI(
       div(class = "config-status",
-          sprintf("\u2713 Saved!  True = %s  |  Bounds: %s \u2013 %s  |  %d groups \u00d7 %d students",
-                  comma(tr), comma(lo), comma(hi), ng, gs))
+          sprintf("\u2713 Saved!  True = %s  |  Bounds: %s \u2013 %s  |  %d groups",
+                  comma(tr), comma(lo), comma(hi), ng))
     )
     updateTabsetPanel(session, "main_tabs", selected = "Live Session")
   })
@@ -471,7 +478,7 @@ server <- function(input, output, session) {
         div(class = "group-badge-val",
             sprintf("Group %d / %d", grp, cfg$ngroups)),
         div(style = "font-size:0.90rem;color:#4A5568;margin-top:3px;",
-            sprintf("%d / %d guesses in", done, cfg$gsize))
+            sprintf("%d guess%s submitted", done, if (done == 1) "" else "es"))
     )
   })
   
@@ -487,16 +494,6 @@ server <- function(input, output, session) {
       flash(list(
         msg = sprintf("\u26a0 Please enter a number between %s and %s.",
                       comma(lo), comma(hi)),
-        ok  = FALSE))
-      return()
-    }
-    
-    # Validation: group not already full
-    done <- sum(group_ids() == grp)
-    if (done >= cfg$gsize) {
-      flash(list(
-        msg = sprintf("\u26a0 Group %d already has %d guesses. Click Next Group first.",
-                      grp, cfg$gsize),
         ok  = FALSE))
       return()
     }
